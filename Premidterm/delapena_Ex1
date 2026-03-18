@@ -1,0 +1,118 @@
+#include <xc.h>
+
+#pragma config FOSC = XT, WDTE = OFF, PWRTE = ON, BOREN = ON, LVP = OFF, CPD = OFF, WRT = OFF, CP = OFF
+
+// Function prototypes
+void initLCD(void);
+void sendLCDCommand(unsigned char cmd);
+void sendLCDData(unsigned char data);
+void delay(unsigned int ms);
+void clearDisplay(void);
+void setCursorPosition(unsigned char pos);
+char getKeyFromPort(void);
+
+// Keypad layout mapping for 4x4 Keypad (74C922)
+static const char keypadLayout[] = "123A456B789C1111D";
+static const char keypadLayout1[] = "           001234D";
+
+
+
+void sendLCDCommand(unsigned char cmd) {
+    PORTC = cmd;
+    RB5 = 0; // RS: Command
+    RB6 = 0; // RW: Write
+    RB7 = 1; // Enable High
+    delay(1);
+    RB7 = 0; // Enable Low
+}
+
+
+
+void sendLCDData(unsigned char data) {
+    PORTC = data;
+    RB5 = 1; // RS: Data
+    RB6 = 0; // RW: Write
+    RB7 = 1; // Enable High
+    delay(1);
+    RB7 = 0; // Enable Low
+}
+
+void initLCD(void) {
+    delay(15);
+    sendLCDCommand(0x38); // 8-bit, 2-line mode
+    sendLCDCommand(0x0F); // Display on, Cursor on, Blink on
+    clearDisplay();
+    sendLCDCommand(0x06); // Increment cursor
+}
+
+void clearDisplay(void) {
+    sendLCDCommand(0x01); // Clear display
+    delay(2);
+}
+
+void setCursorPosition(unsigned char pos) {
+    unsigned char cmd;
+    
+    if (pos == 0) cmd = 0xC6;   // First line
+    else if (pos == 20) cmd = 0xC6; // Second line
+    else if (pos == 40) cmd = 0x94; // Third line
+    else if (pos == 60) cmd = 0xD4; // Fourth line
+    
+    sendLCDCommand(cmd);
+}
+
+void delay(unsigned int ms) {
+    unsigned int i, j;
+    for (i = 0; i < ms; i++) {
+        for (j = 0; j < 1000; j++);
+    }
+}
+
+char getKeyFromPort(void) {
+
+    unsigned char fol;
+    fol = PORTD & 0x0F;
+  
+    
+    return fol;  // Extract the 4-bit key value from Port D
+}
+
+int main(void) {
+    // Hardware Setup based on schematic
+    TRISB = 0x00; // LCD Data on Port B
+    TRISC = 0x00; // LCD Control on Port C
+    TRISD = 0xFF; // Keypad Input on Port D
+    
+    ADCON1 = 0x06; // Disable analog pins to ensure digital logic
+
+    initLCD();
+    unsigned char posCount = 0;
+
+    while(1) {
+       
+        if (RD4) {
+            unsigned char hexIn = getKeyFromPort();
+
+           
+            while (RD4);
+
+        
+            if (posCount >= 80) {
+                clearDisplay();
+                posCount = 0;
+            }
+
+           
+            setCursorPosition(posCount);
+
+        
+          
+            sendLCDData(keypadLayout[hexIn]);
+            sendLCDData(keypadLayout1[hexIn]);
+            
+
+            posCount++;
+        }
+    }
+    return 0;
+}
